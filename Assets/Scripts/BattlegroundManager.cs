@@ -11,7 +11,6 @@ using UnityEngine.SceneManagement;
 
 namespace TankGame
 {
-    public delegate void BroadcastEventHandle((string action, IDynamicType subdata) msg);
     /// <summary>
     /// 这个类只应负责处理开始游戏后的单次对局 
     /// </summary>
@@ -48,20 +47,14 @@ namespace TankGame
         /// </summary>
         public Dictionary<string,Tank> Tanks{get;}=new Dictionary<string, Tank>();
 
-        /// <summary>
-        /// 接收到广播消息时
-        /// </summary>
-        public event BroadcastEventHandle OnReceiveBroadcast;
-
-
         private CameraFollow cameraFollow;
 
         private void Awake()
         {
             //不需要调用  DontDestroyOnLoad 因为要让这个脚本只在TankScene中保持单例  而不是全局单例
             Instance = this;
+            NetManager.Instance.OnReceiveBroadcast += Instance_OnReceiveBroadcast;
         }
-
 
         // Start is called before the first frame update
         void Start()
@@ -80,29 +73,24 @@ namespace TankGame
             }
         }
 
-
-
-        void Update()
+        /// <summary>
+        /// 接收到广播消息
+        /// </summary>
+        private void Instance_OnReceiveBroadcast((string action, IDynamicType subdata) msg)
         {
-
-            while(CommonRequest.Instance.BroadQueue.Count>0)
+            foreach (var tank in Tanks.Values)
             {
-                var msg= CommonRequest.Instance.BroadQueue.Dequeue();
-                foreach(var tank in Tanks.Values)
+                var nets = tank.Instance.GetComponents<NetBehaviour>();
+                foreach (var net in nets)
                 {
-                    var nets= tank.Instance.GetComponents<NetBehaviour>();
-                    foreach(var net in nets)
-                    {
-                        net.OnBroadcast(msg);
-                    }
+                    net.OnBroadcast(msg);
                 }
-
-                //调用事件
-                OnReceiveBroadcast?.Invoke(msg);
-                //全局处理
-                DoHandle(msg);
             }
+
+            //全局处理
+            DoHandle(msg);
         }
+
 
         private void DoHandle((string action, IDynamicType subData) msg)
         {

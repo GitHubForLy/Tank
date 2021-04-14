@@ -17,6 +17,10 @@ namespace TankGame
             PanelManager.Instance.DefaultCursorVisble = true;
         }
 
+        void Start()
+        {
+            PanelManager.Instance.OpenPanel<LoginPanel>();
+        }
 
     }
 

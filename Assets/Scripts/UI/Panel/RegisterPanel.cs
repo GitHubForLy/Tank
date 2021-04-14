@@ -5,7 +5,7 @@ using UnityEngine.UI;
 using TankGame.Net;
 using DataModel;
 
-namespace TankGame.UI
+namespace TankGame.UI.Panel
 {
     public class RegisterPanel : PanelBase
     {

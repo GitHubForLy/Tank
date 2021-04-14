@@ -7,7 +7,7 @@ using DataModel;
 using System;
 using UnityEngine.SceneManagement;
 
-namespace TankGame.UI
+namespace TankGame.UI.Panel
 {
     public class LoginPanel : PanelBase
     {
@@ -32,7 +32,9 @@ namespace TankGame.UI
             {
                 if(res.IsSuccess)
                 {
-                    SceneManager.LoadSceneAsync("TankScene");
+                    //SceneManager.LoadSceneAsync("TankScene");
+                    Close();
+                    PanelManager.Instance.OpenPanel<RoomListPanel>();
                 }
                 else
                 {

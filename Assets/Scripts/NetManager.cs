@@ -9,9 +9,11 @@ using UnityEditor;
 using TankGame.UI;
 using System.Runtime.InteropServices;
 using DataModel;
+using ServerCommon;
 
 namespace TankGame
 {
+    public delegate void BroadcastEventHandle((string action, IDynamicType subdata) msg);
     public class NetManager : MonoBehaviour
     {
         public string ServerHost = "localhost";   
@@ -23,7 +25,10 @@ namespace TankGame
         public string Password { get; set; }
         public string LoginTimestamp { get; private set; }
         public bool IsLogin { get; set; } = false;
-
+        /// <summary>
+        /// 接收到广播消息时
+        /// </summary>
+        public event BroadcastEventHandle OnReceiveBroadcast;
 
         private bool IsNeedReconnect = false;
         private bool isReConnecting = false;
@@ -98,8 +103,23 @@ namespace TankGame
             IsNeedReconnect = false;
 
             InvokeEventDelegate();
+            InvokeBroadcastMethod();
+
         }
 
+        /// <summary>
+        /// 广播消息
+        /// </summary>
+        private void InvokeBroadcastMethod()
+        {
+            while (CommonRequest.Instance.BroadQueue.Count > 0)
+            {
+                var msg = CommonRequest.Instance.BroadQueue.Dequeue();
+
+                //调用事件
+                OnReceiveBroadcast?.Invoke(msg);
+            }
+        }
 
         //调用网络请求回调方法
         private void InvokeEventDelegate()

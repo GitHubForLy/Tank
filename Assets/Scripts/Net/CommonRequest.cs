@@ -146,7 +146,7 @@ namespace TankGame.Net
         }
 
         private void NetClient_OnReceiveData(object sender, byte[] data)
-        {                  
+        {
             //Respone respone = formatter.Deserialize<Respone>(data);
             var dydata= formatter.DeserializeDynamic(data);
             var contro= dydata.GetChid(nameof(Respone.Controller))?.GetValue<string>();
