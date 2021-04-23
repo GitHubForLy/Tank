@@ -10,7 +10,7 @@ namespace TankGame.UI.Panel
     public class MainMenuPanel : PanelBase
     {
         private float lastTimescale;
-        protected override void OnInit()
+        public override void OnInit(params object[] paramaters)
         {
             base.OnInit();
             lastTimescale = Time.timeScale;

@@ -2,11 +2,12 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using TankGame.Net;
 
 namespace TankGame.TankBehaviour
 {
     public delegate void KillEnemyEventHandle(DamageHit damageHit);
-    public class TankFire : MonoBehaviour
+    public class TankFire : NetBehaviour
     {
         public GameObject Bullut;
         public Transform FirePoint;
@@ -46,13 +47,29 @@ namespace TankGame.TankBehaviour
             if (Time.time - lastFireTime < FireInteval)
                 return;
 
-
             ShootRaycast(out RaycastHit hit, out Vector3 FireTargetPos);
-            var colliders= Physics.OverlapSphere(FireTargetPos, ExplosionRadius);
+
+            if (!IsLocalPlayer)
+            {
+                DoTakeDamage(FireTargetPos);
+            }           
+
+            Instantiate(Explosion, FireTargetPos, FirePoint.rotation);
+            AudioSource.PlayClipAtPoint(FireAudio, transform.position);
+            AudioSource.PlayClipAtPoint(ExplodeAudio, FireTargetPos);
+
+            lastFireTime = Time.time;
+        }
+
+
+        private void DoTakeDamage(Vector3 FireTargetPos)
+        {
+
+            var colliders = Physics.OverlapSphere(FireTargetPos, ExplosionRadius);
 
             List<GameObject> hitObjs = new List<GameObject>();
 
-            foreach(var collider in colliders)
+            foreach (var collider in colliders)
             {
                 var obj = collider.gameObject;
                 if (obj.CompareTag(Tags.Tank))
@@ -72,7 +89,7 @@ namespace TankGame.TankBehaviour
                         print("damage:" + hitDamage);
 
                         if (collider.attachedRigidbody)
-                            collider.attachedRigidbody.AddExplosionForce(ExplosionForce, FireTargetPos,ExplosionRadius);
+                            collider.attachedRigidbody.AddExplosionForce(ExplosionForce, FireTargetPos, ExplosionRadius);
 
                         var damhit = enemyHealth.TakeDamage(hitDamage, this);
 
@@ -82,13 +99,6 @@ namespace TankGame.TankBehaviour
                     }
                 }
             }
-
-
-            Instantiate(Explosion, FireTargetPos, FirePoint.rotation);
-            AudioSource.PlayClipAtPoint(FireAudio, transform.position);
-            AudioSource.PlayClipAtPoint(ExplodeAudio, FireTargetPos);
-
-            lastFireTime = Time.time;
         }
 
         //计算伤害
@@ -113,6 +123,7 @@ namespace TankGame.TankBehaviour
             FireTargetPos = point;
             return res;
         }
+
     }
 
 }

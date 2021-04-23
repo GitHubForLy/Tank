@@ -1,5 +1,7 @@
-﻿using System.Collections;
+﻿using ServerCommon;
+using System.Collections;
 using System.Collections.Generic;
+using TankGame.Net;
 using UnityEngine;
 
 
@@ -18,7 +20,7 @@ namespace TankGame.TankBehaviour
 
     public delegate void OnDieEventHandle(GameObject deadTank,Behaviour killer);
 
-    public class TankHealth : MonoBehaviour
+    public class TankHealth : NetBehaviour
     {
         public GameObject DieEffect;
         public float MaxHealth = 100;
@@ -27,20 +29,37 @@ namespace TankGame.TankBehaviour
 
         public event OnDieEventHandle OnDie;
 
+        private NetIdentity identity;
 
         // Start is called before the first frame update
         void Start()
         {
+            identity = GetComponent<NetIdentity>();
             IsDie = false;
             CurrentHealth = MaxHealth;
         }
 
+
+        public override void OnBroadcast((string Action, IDynamicType data) dt)
+        {
+            if(dt.Action==DataModel.BroadcastActions.TakeDamage)
+            {
+                (string account,float damage) data = dt.data.GetValue<(string, float)>();
+                if(data.account== identity.Account && !IsLocalPlayer)
+                {
+                    TakeDamage(data.damage,null);
+                }
+            }
+        }
 
         public DamageHit TakeDamage(float Damage, Behaviour sender)
         {
             DamageHit hit = new DamageHit() { IsMakeDeath = false, RealDamage = 0 };
             if (IsDie)
                 return hit;
+
+            if(IsLocalPlayer)
+                UpdateServerTakeDamage(Damage);
 
             hit.RealDamage = Damage;
             CurrentHealth -= Damage;
@@ -52,6 +71,12 @@ namespace TankGame.TankBehaviour
                 DoDie(sender);
             }
             return hit;
+        }
+
+
+        public void UpdateServerTakeDamage(float damaaage)
+        {
+            CommonRequest.Instance.Broadcast(damaaage, DataModel.BroadcastActions.TakeDamage);
         }
 
         private void DoDie(Behaviour killer)

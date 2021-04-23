@@ -9,13 +9,31 @@ namespace TankGame.UI
     {
         private void Awake()
         {
-            OnInit();
         }
 
-
-        protected virtual void OnInit()
+        /// <summary>
+        /// 初始化
+        /// </summary>
+        /// <param name="paramaters">可选参数</param>
+        public virtual void OnInit(params object[] paramaters)
         {
 
+
+        }
+
+        /// <summary>
+        /// Esc键点击时
+        /// </summary>
+        public virtual void OnEscape()
+        {
+            Close();
+        }
+
+        /// <summary>
+        /// 回车键点击时
+        /// </summary>
+        public virtual void OnEnter()
+        {
 
         }
 

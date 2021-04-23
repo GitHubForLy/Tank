@@ -11,6 +11,7 @@ using DataModel;
 using JsonFormatter;
 using ServerCommon;
 using AopCore;
+using System.Threading;
 
 namespace TankGame.Net
 {
@@ -32,6 +33,7 @@ namespace TankGame.Net
     public class EventList
     {
         private Dictionary<int,Delegate> queue=new Dictionary<int, Delegate>();
+        public int Count => queue.Count;
         public void Add<T>(int id, EventCallback<T> callback)
         {
             queue.Add(id, callback);
@@ -69,6 +71,11 @@ namespace TankGame.Net
         private JsonDataFormatter formatter;
 
         /// <summary>
+        /// 是否连接
+        /// </summary>
+        public bool IsConnected => NetClient.IsConnected;
+
+        /// <summary>
         /// 广播消息队列 
         /// </summary>
         public BroadcastQueue BroadQueue {get;} =new BroadcastQueue();
@@ -77,7 +84,6 @@ namespace TankGame.Net
         /// 与服务器连接出错
         /// </summary>
         public event Action<SocketException> OnConnectionError;
-
         /// <summary>
         /// 待执行的委托列表
         /// </summary>
@@ -101,7 +107,7 @@ namespace TankGame.Net
         private CommonRequest()
         {
             formatter=new JsonDataFormatter();
-            Init();
+            Init();            
         }
 
         private void Init()
@@ -147,8 +153,10 @@ namespace TankGame.Net
 
         private void NetClient_OnReceiveData(object sender, byte[] data)
         {
-            //Respone respone = formatter.Deserialize<Respone>(data);
             var dydata= formatter.DeserializeDynamic(data);
+
+
+
             var contro= dydata.GetChid(nameof(Respone.Controller))?.GetValue<string>();
             var action = dydata.GetChid(nameof(Respone.Action))?.GetValue<string>();
             if (contro == null || action == null)
@@ -160,7 +168,7 @@ namespace TankGame.Net
             switch (contro)
             {
                 case ControllerNames.Broadcast:
-                    var sda= dydata.GetChid(nameof(Respone.Data));
+                    var sda= dydata.GetChid(nameof(Respone<int>.Data));
                     BroadQueue.Enqueue((action, sda));
                     break;
                 case ControllerNames.Event:
@@ -173,8 +181,7 @@ namespace TankGame.Net
         private void CallEvent(IDynamicType dyanmicData)
         {
             var respone=dyanmicData.GetValue<Respone>();
-            var sub = dyanmicData.GetChid(nameof(Respone.Data));/*.GetValue<StandRespone>();*/
-
+            var sub = dyanmicData.GetChid(nameof(Respone<DataMisalignedException>.Data));/*.GetValue<StandRespone>();*/
             if (eventList.ContainsId(respone.RequestId))
             {
                 lock(Delegates)
@@ -226,6 +233,16 @@ namespace TankGame.Net
         /// </summary>
         public void DoRequest<ResType>(object request, string action, EventCallback<ResType> callback,Action ComplatedCallback)
         {
+            if(!NetClient.IsConnected)
+                ReStart();
+
+            if (Delegates.Count > 0 || eventList.Count>0)//如果还有没处理的就不能重复发
+            {
+                Debug.LogWarning(action+" 请求被撤销, 还有请求没有处理完！");
+                return;
+            }
+
+
             Request req = new Request
             { 
                 Controller = ControllerNames.Event,
@@ -260,15 +277,13 @@ namespace TankGame.Net
         /// <summary>
         /// 广播方法的调用
         /// </summary>
-        public void BroadcastMethod(MethodExecuteArgs args)
+        public void BroadcastMethod(BroadcastMethod method)
         {
-            (string ClassFullName,string MethodName,object[] Parameters) md = (args.Method.DeclaringType.FullName,args.Method.Name,args.ParameterValues);
-
             Request req = new Request
             {
                 Action = nameof(BroadcastMethod),
                 Controller = ControllerNames.Broadcast,
-                Data = md
+                Data = method
             };
 
             NetClient.SendDataAsync(formatter.Serialize(req));

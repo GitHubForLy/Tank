@@ -157,7 +157,6 @@ namespace TankGame.TankBehaviour
                     wheel.LeftCollider.brakeTorque = 0;
                     wheel.RightCollider.brakeTorque = 0;
                 }
-
             }
 
             if (TurnType == TurnTypes.Rigidbody)

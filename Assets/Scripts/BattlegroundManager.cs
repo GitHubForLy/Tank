@@ -16,13 +16,14 @@ namespace TankGame
     /// </summary>
     public class BattlegroundManager : MonoBehaviour
     {
+        /// <summary>
+        /// 所在房间的用户
+        /// </summary>
+        public static DataModel.RoomUser[] RoomUsers { get;  set; }
 
-        public string Account{get;set;}
         public GameObject TankPrefab;
         public Transform[] Waypoints;
-
         public GameObject LocalTank{get;set;}
-
 
         public class Tank
         {
@@ -40,7 +41,7 @@ namespace TankGame
         /// 战场实例
         /// </summary>
         public static BattlegroundManager Instance { get;private set; }
-
+        public static float StartTime;
 
         /// <summary>
         /// 全局坦克列表
@@ -48,6 +49,7 @@ namespace TankGame
         public Dictionary<string,Tank> Tanks{get;}=new Dictionary<string, Tank>();
 
         private CameraFollow cameraFollow;
+        private float timescale;
 
         private void Awake()
         {
@@ -66,11 +68,32 @@ namespace TankGame
 
             Waypoints = GameObject.FindGameObjectsWithTag(Tags.Waypoint).Select(g => g.transform).ToArray();
             cameraFollow = Camera.main.GetComponent<CameraFollow>();
+            timescale = Time.timeScale;
 
             if (NetManager.Instance.IsLogin)
             {
-                StartGame(NetManager.Instance.LoginAccount);
+                StartGame();
             }
+        }
+
+
+        private void Update()
+        {
+            if(Input.GetKeyDown(KeyCode.Escape))
+            {
+                PanelManager.Instance.OpenPanel<TankGame.UI.Panel.BattleMenuPanel>();
+            }
+        }
+
+        public void PauseGame()
+        {
+            //Time.timeScale = 0;
+            LocalTank.GetComponent<TankGame.Player.TankGui>().enabled = false;
+        }
+        public void ResumeGame()
+        {
+            //Time.timeScale = timescale;
+            LocalTank.GetComponent<TankGame.Player.TankGui>().enabled = true;
         }
 
         /// <summary>
@@ -96,9 +119,6 @@ namespace TankGame
         {
             switch(msg.action)
             {
-                case DataModel.BroadcastActions.Login:
-                    OnPlayerLogin(msg.subData);
-                    break;
                 case DataModel.BroadcastActions.Loginout:
                     OnUserLoginOut(msg.subData);
                     break;
@@ -108,41 +128,16 @@ namespace TankGame
         private void OnUserLoginOut(IDynamicType subData)
         {
             var data = subData.GetValue<(string account,string timestamp)>();
-            if(NetManager.Instance.IsLogin)
+            if (data.account != NetManager.Instance.LoginAccount)
             {
-                Debug.Log("logout:  account:" + data.account+" time:"+data.timestamp);
-                if (data.account == this.Account)
-                {
-                    //被挤下来
-                    if (data.timestamp == NetManager.Instance.LoginTimestamp)
-                    {
-                        PanelManager.Instance.ShowMessageBox("你的账号已于别处登录",res=> 
-                        {
-                            NetManager.Instance.IsLogin = false;
-                            SceneManager.LoadScene("StartScene");
-                        });
-                    }
-                }
-                else
-                    LoginoutTank(data.account); 
+                LoginoutTank(data.account);
             }
-        }
-
-
-        private void OnPlayerLogin(IDynamicType data)
-        {
-            var info = data.GetValue<DataModel.LoginInfo>();
-            Debug.Log("login:" + info.Account);
-            if (info.Account == this.Account)
-                return;
-            var wayindex = Random.Range(0, Waypoints.Length);
-            SpawnTank(info.Account, Waypoints[wayindex].position,Waypoints[wayindex].eulerAngles);
         }
 
 
         public void LoginoutTank(string account)
         {
-            if(Tanks.ContainsKey(account))
+            if(Tanks.ContainsKey(account)) 
             {
                 Destroy(Tanks[account].Instance);
                 Tanks.Remove(account);
@@ -157,62 +152,45 @@ namespace TankGame
             var identity=behaviour.GetComponent<NetIdentity>();
             if (identity == null)
                 return true;
-            if (identity.Account == this.Account)
+            if (identity.Account == NetManager.Instance.LoginAccount)
                 return true;
             return false;
         }
 
 
-        private void StartGame(string account)
+        private void StartGame()
         {
-            if(Tanks.ContainsKey(account))
+            if(Tanks.ContainsKey(NetManager.Instance.LoginAccount))
             {
-                Debug.LogError("已经存在账号:"+account);
+                Debug.LogError("已经存在账号:"+ NetManager.Instance.LoginAccount);
                 return;
             }
 
-            Account = account;
-            if(Waypoints.Length>0)
+            if(Waypoints.Length>=RoomUsers.Length)
             {
-                var wayindex = Random.Range(0, Waypoints.Length);
-                var tank = SpawnTank(account, Waypoints[wayindex].position, Waypoints[wayindex].eulerAngles);
-                cameraFollow.target = tank.transform.Find("camera_follow").gameObject;
-                LocalTank = tank;
-                DataModel.LoginInfo info = new DataModel.LoginInfo
+                foreach(var user in RoomUsers)
                 {
-                    Account = account,
-                    WaypointIndex = wayindex
-                };
-
-                CommonRequest.Instance.Broadcast(info, DataModel.BroadcastActions.Login);
+                    var tank= SpawnTank(user, Waypoints[user.Index].position, Waypoints[user.Index].eulerAngles);
+                    if (user.Account==NetManager.Instance.LoginAccount)
+                    {
+                        LocalTank = tank;
+                        cameraFollow.target = tank.transform.Find("camera_follow").gameObject;
+                    }
+                }
             }
             else
             {
                 Debug.LogError("没有路点");
             }
-
-            GetServerTanks();
         }
 
-        void GetServerTanks()
-        {
-            CommonRequest.Instance.DoRequest<List<(string account,DataModel.Transform tran)>>(null, DataModel.EventActions.GetPlayerTransforms,(data)=> 
-            { 
-                foreach(var ptran in data)
-                {
-                    if (ptran.account != this.Account)
-                    {
-                        SpawnTank(ptran.account, ptran.tran.Position.ToUnityVector(), ptran.tran.Rotation.ToUnityVector());
-                    }
-                }         
-            });
-        }
 
         /// <summary>
         /// 生成坦克
         /// </summary>
-        private GameObject SpawnTank(string account,Vector3 position,Vector3 rotation)
+        private GameObject SpawnTank(DataModel.RoomUser user,Vector3 position,Vector3 rotation)
         {
+            var account = user.Account;
             if (Tanks.ContainsKey(account))
                 return Tanks[account].Instance;
 
@@ -225,8 +203,14 @@ namespace TankGame
             };
             Tanks.Add(account, tank);
 
+            instance.GetComponent<TankTeam>().TeamNumber = user.Team;
             instance.GetComponent<NetIdentity>().Account = account;
             return instance;
+        }
+
+        private void OnDestroy()
+        {
+            NetManager.Instance.OnReceiveBroadcast -= Instance_OnReceiveBroadcast;
         }
 
     }

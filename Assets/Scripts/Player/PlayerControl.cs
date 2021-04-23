@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using TankGame.TankBehaviour;
 using TankGame.Net;
+using System;
+using ServerCommon;
 
 namespace TankGame.Player
 {
@@ -24,11 +26,15 @@ namespace TankGame.Player
         private bool fireInput;
         private Vector3 targetPos;
 
+        private NetIdentity identity;
+
+        private float lastSendTime;
 
         // Start is called before the first frame update
         void Start()
         {
-            tankMovement=GetComponent<TankMovement>();
+            identity = GetComponent<NetIdentity>();
+            tankMovement =GetComponent<TankMovement>();
             tankFire=GetComponent<TankFire>();
             tankGui = GetComponent<TankGui>();
             tankHealth = GetComponent<TankHealth>();
@@ -65,8 +71,58 @@ namespace TankGame.Player
             tankGui.TargetPos = targetPos;
 
             if(tankMovement.turret!=null)
+            {
                 tankMovement.TargetDirection = targetPos - tankMovement.turret.position;
+                BroadcastTargetDirection(tankMovement.TargetDirection);
+            }
+            if (fireInput)
+                BroadFire();
         }
+
+        private void BroadFire()
+        {
+            CommonRequest.Instance.Broadcast(null,DataModel.BroadcastActions.Fire);
+        }
+
+        /// <summary>
+        /// 广播炮塔方向
+        /// </summary>
+        private void BroadcastTargetDirection(Vector3 targetDirection)
+        {
+            if(Time.time-lastSendTime>=0.2f)
+            {
+                CommonRequest.Instance.Broadcast(new DataModel.Vector3 { X = targetDirection.x, Y = targetDirection.y, Z = targetDirection.z },
+                    DataModel.BroadcastActions.UpdateTurretDirection);
+                lastSendTime = Time.time;
+            }
+        }
+
+        public override void OnBroadcast((string Action, IDynamicType data) dt)
+        {
+            if (IsLocalPlayer)
+                return;
+
+            //炮塔方向
+            if(dt.Action==DataModel.BroadcastActions.UpdateTurretDirection)
+            {
+                var data = dt.data.GetValue<(string, DataModel.Vector3)>();
+                if(data.Item1== identity.Account)
+                {
+                    tankMovement.TargetDirection = data.Item2.ToUnityVector(); 
+                }
+            }
+
+            //开火
+            else if(dt.Action==DataModel.BroadcastActions.Fire)
+            {
+                var data = dt.data.GetValue<string>();
+                if(data==identity.Account)
+                {
+                    tankFire.Fire(); 
+                } 
+            }
+        }
+
 
 
         // Update is called once per frame

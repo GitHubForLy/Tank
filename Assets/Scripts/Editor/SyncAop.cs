@@ -50,6 +50,7 @@ public class SyncAop
         var unityengine= AppDomain.CurrentDomain.GetAssemblies().First(m => m.Location.Contains("UnityEngine.CoreModule"));
         if (unityengine != null)
             paths.Add(Path.GetDirectoryName(unityengine.Location));
+        paths.Add(Application.dataPath+ "/Plugin");
 
         WeavePamater weavePamater = new WeavePamater
         {
@@ -62,7 +63,6 @@ public class SyncAop
 
         Debug.Log("begin weave:" + assembly);
         var st= System.Diagnostics.Stopwatch.StartNew();
-        st.Start();
         WeaveRunner.Weave(weavePamater);
         st.Stop();
         Debug.Log("finished weave:" + assembly+",     time:"+st.ElapsedMilliseconds);

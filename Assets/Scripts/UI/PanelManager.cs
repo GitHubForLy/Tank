@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -20,6 +21,10 @@ namespace TankGame.UI
         private Transform m_Canvas;
         //private Dictionary<Type,GameObject> m_OpenPanels=new Dictionary<Type,GameObject>();
         private List<GameObject> m_OpenPanels = new List<GameObject>();
+        /// <summary>
+        /// 当前打开的最上层Panel
+        /// </summary>
+        public PanelBase TopOpenPanel => m_OpenPanels.Last().GetComponent<PanelBase>();
 
         public bool DefaultCursorVisble;
         public CursorLockMode DefaultCursroMode;
@@ -52,19 +57,30 @@ namespace TankGame.UI
         private void Update()
         {
             var ritbtn= Input.GetKeyDown(KeyCode.Escape);
-            if(ritbtn)
+            var enter = Input.GetKeyDown(KeyCode.Return);
+
+#if UNITY_EDITOR
+#else
+            if (ritbtn)
             {
                 if (m_OpenPanels.Count > 0)
-                    ClosePanel(m_OpenPanels[m_OpenPanels.Count - 1].GetComponent<PanelBase>());
-                else
-                {
-                    OpenPanel<MainMenuPanel>();
-                }
+                    m_OpenPanels[m_OpenPanels.Count - 1].GetComponent<PanelBase>().OnEscape();
+                //else
+                //{
+                //    OpenPanel<MainMenuPanel>();
+                //}
             }
+#endif
+            if (enter)
+            {
+                if (m_OpenPanels.Count > 0)
+                    m_OpenPanels[m_OpenPanels.Count - 1].GetComponent<PanelBase>().OnEnter();
+            }
+
         }
 
 
-        public PanelBase OpenPanel<T>()where T:PanelBase
+        public T OpenPanel<T>(params object[] paramaters)where T:PanelBase
         {
 
             var PanelObj=Resources.Load<GameObject>(PanelResourcePath + typeof(T).Name);
@@ -86,6 +102,7 @@ namespace TankGame.UI
                 Destroy(backpanel);
                 return null;
             }
+            panelbase.OnInit(paramaters);
 
             backpanel.transform.SetParent(m_Canvas, false);
             gamePanel.transform.SetParent(backpanel.transform, false);
@@ -122,21 +139,40 @@ namespace TankGame.UI
             }
 
             return true;
+        } 
+
+        /// <summary>
+        /// 关闭所有窗体
+        /// </summary>
+        public void CloseAll()
+        {
+            PanelBase panel;
+            for(int i=m_OpenPanels.Count-1;i>=0;i--)
+            {
+                panel = m_OpenPanels[i].GetComponent<PanelBase>();
+                panel.OnClosed();
+
+                //删除父物体 遮罩窗体
+                Destroy(m_OpenPanels[i].transform.parent.gameObject);
+                m_OpenPanels.Remove(panel.gameObject);
+            }
         }
 
-
-        public void ShowMessageBox(string TipText,MessageBoxResultEvent callback=null)
+        public void ShowMessageBox(string TipText)
         {
-            var box= OpenPanel<MessageBox>();
+            ShowMessageBox(TipText,MessageBoxButtons.Ok,null);
+        }
+        public void ShowMessageBox(string TipText,MessageBoxButtons buttons=MessageBoxButtons.Ok, MessageBoxResultEvent callback = null)
+        {
+            var box = OpenPanel<MessageBox>();
             if (box != null)
             {
-                (box as MessageBox).Text = TipText;
-                if(callback!=null)
-                (box as MessageBox).OnResult += callback;
+                box.Buttons = buttons;
+                box.Text = TipText;
+                if (callback != null)
+                    box.OnResult += callback;
             }
-
         }
-
     }
 }
 

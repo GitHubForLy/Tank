@@ -19,7 +19,10 @@ namespace TankGame
 
         void Start()
         {
-            PanelManager.Instance.OpenPanel<LoginPanel>();
+            if (!NetManager.Instance.IsLogin)
+                PanelManager.Instance.OpenPanel<LoginPanel>();
+            else
+                PanelManager.Instance.OpenPanel<RoomListPanel>();
         }
 
     }
