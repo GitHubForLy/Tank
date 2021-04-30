@@ -1,0 +1,10 @@
+D:\李阳\LiyangSVN\Unity\Update\bin\Debug\Update.exe.config
+D:\李阳\LiyangSVN\Unity\Update\bin\Debug\Update.exe
+D:\李阳\LiyangSVN\Unity\Update\bin\Debug\Update.pdb
+D:\李阳\LiyangSVN\Unity\Update\obj\Debug\Update.csprojAssemblyReference.cache
+D:\李阳\LiyangSVN\Unity\Update\obj\Debug\Update.Properties.Resources.resources
+D:\李阳\LiyangSVN\Unity\Update\obj\Debug\Update.csproj.GenerateResource.cache
+D:\李阳\LiyangSVN\Unity\Update\obj\Debug\Update.csproj.CoreCompileInputs.cache
+D:\李阳\LiyangSVN\Unity\Update\obj\Debug\Update.exe
+D:\李阳\LiyangSVN\Unity\Update\obj\Debug\Update.pdb
+D:\李阳\LiyangSVN\Unity\Update\obj\Debug\Update.Form1.resources
