@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using TankGame.Net;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace TankGame.UI.Panel
 {
@@ -31,7 +30,7 @@ namespace TankGame.UI.Panel
                     {
                         if (res.IsSuccess)
                         {
-                            SceneManager.LoadScene("StartScene");
+                            GameController.LoadScene<RoomListPanel>("StartScene");
                         }
                         else
                             PanelManager.Instance.ShowMessageBox("退出失败:" + res.Message);

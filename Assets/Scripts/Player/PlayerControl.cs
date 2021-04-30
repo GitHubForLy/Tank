@@ -38,13 +38,8 @@ namespace TankGame.Player
             tankFire=GetComponent<TankFire>();
             tankGui = GetComponent<TankGui>();
             tankHealth = GetComponent<TankHealth>();
-            tankHealth.OnDie += TankHealth_OnDie;
         }
 
-        private void TankHealth_OnDie(GameObject deadTank,Behaviour Killer)
-        {
-            EnableInput = false;
-        }
 
         private void Update()
         {
@@ -75,13 +70,6 @@ namespace TankGame.Player
                 tankMovement.TargetDirection = targetPos - tankMovement.turret.position;
                 BroadcastTargetDirection(tankMovement.TargetDirection);
             }
-            if (fireInput)
-                BroadFire();
-        }
-
-        private void BroadFire()
-        {
-            CommonRequest.Instance.Broadcast(null,DataModel.BroadcastActions.Fire);
         }
 
         /// <summary>

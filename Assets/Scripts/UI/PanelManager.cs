@@ -19,12 +19,13 @@ namespace TankGame.UI
 
         [SerializeField]
         private Transform m_Canvas;
-        //private Dictionary<Type,GameObject> m_OpenPanels=new Dictionary<Type,GameObject>();
-        private List<GameObject> m_OpenPanels = new List<GameObject>();
+        private Dictionary<GameObject, PanelBase> m_OpenPanels=new Dictionary<GameObject,PanelBase>();
+        //private List<GameObject> m_OpenPanels = new List<GameObject>();
+
         /// <summary>
         /// 当前打开的最上层Panel
         /// </summary>
-        public PanelBase TopOpenPanel => m_OpenPanels.Last().GetComponent<PanelBase>();
+        public PanelBase TopOpenPanel => m_OpenPanels.Last().Value;
 
         public bool DefaultCursorVisble;
         public CursorLockMode DefaultCursroMode;
@@ -64,7 +65,7 @@ namespace TankGame.UI
             if (ritbtn)
             {
                 if (m_OpenPanels.Count > 0)
-                    m_OpenPanels[m_OpenPanels.Count - 1].GetComponent<PanelBase>().OnEscape();
+                    m_OpenPanels.Last().Value.OnEscape();
                 //else
                 //{
                 //    OpenPanel<MainMenuPanel>();
@@ -74,24 +75,93 @@ namespace TankGame.UI
             if (enter)
             {
                 if (m_OpenPanels.Count > 0)
-                    m_OpenPanels[m_OpenPanels.Count - 1].GetComponent<PanelBase>().OnEnter();
+                    m_OpenPanels.Last().Value.OnEnter();
             }
 
         }
 
 
+        /// <summary>
+        /// 打开Panel并管理此panel
+        /// </summary>
+        public PanelBase OpenPanel(Type panelType,params object[] paramaters) 
+        {
+            if (!typeof(PanelBase).IsAssignableFrom(panelType)) 
+                return null;
+
+            return OpenPanel(PanelResourcePath + panelType.Name, paramaters);        
+        }
+
+        /// <summary>
+        /// 打开Panel并管理此panel
+        /// </summary>
         public T OpenPanel<T>(params object[] paramaters)where T:PanelBase
         {
+            return (T)OpenPanel(typeof(T), paramaters);
+        }
 
-            var PanelObj=Resources.Load<GameObject>(PanelResourcePath + typeof(T).Name);
-            if(PanelObj == null)
+        /// <summary>
+        /// 打开Panel 如果已打开此类型panel 则不打开新的 并管理此panel
+        /// </summary>
+        public T OpenPanelUnique<T>(params object[] paramaters) where T : PanelBase
+        {
+            if(m_OpenPanels.Any(m=>m.Value is T))
+            {           
+                var panel =m_OpenPanels.First(m => m.Value is T);
+                panel.Key.transform.parent.SetAsLastSibling();
+                return (T)panel.Value;
+            }
+            return (T)OpenPanel(typeof(T), paramaters);
+        }
+
+        /// <summary>
+        /// 根据panel名称 打开Panel并管理此panel
+        /// </summary>
+        public PanelBase OpenPanel(string PanelPath,params object[] paramaters)
+        {
+            var PanelObj = Resources.Load<GameObject>(PanelPath);
+            if (PanelObj == null)
+            {
+                Debug.LogError("无法找到panel资源:" + PanelPath);
+                return null;
+            }
+
+            var backpanel = Instantiate(BackMaskPanel);
+            var gamePanel = Instantiate(PanelObj);
+
+            var panelbase = gamePanel.GetComponent<PanelBase>();
+            if (panelbase == null)
+            {
+                panelbase = gamePanel.AddComponent<PanelBase>();
+                Debug.LogWarning("panel资源没有附加Panelbase组件，已自动附加:" + PanelPath);
+            }
+
+            panelbase.OnInit(paramaters);
+
+            backpanel.transform.SetParent(m_Canvas, false);
+            gamePanel.transform.SetParent(backpanel.transform, false);
+            backpanel.transform.SetAsLastSibling();
+
+            m_OpenPanels.Add(gamePanel, panelbase);
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+            return panelbase;
+        }
+
+
+
+        /// <summary>
+        /// 打开Panel并附加到指定的父物体上 不管理此panel
+        /// </summary>
+        public T SetupPanel<T>(Transform Parent,params object[] paramaters) where T:PanelBase
+        {
+            var PanelObj = Resources.Load<GameObject>(PanelResourcePath + typeof(T).Name);
+            if (PanelObj == null)
             {
                 Debug.LogError("无法找到panel资源:" + typeof(T).Name + "  路径:" + PanelResourcePath + typeof(T).Name);
                 return null;
             }
 
-
-            var backpanel = Instantiate(BackMaskPanel);
             var gamePanel = Instantiate(PanelObj);
 
             var panelbase = gamePanel.GetComponent<T>();
@@ -99,26 +169,24 @@ namespace TankGame.UI
             {
                 Debug.LogError("panel资源无效:" + typeof(T).Name + "  路径:" + PanelResourcePath + typeof(T).Name);
                 Destroy(gamePanel);
-                Destroy(backpanel);
                 return null;
             }
+
             panelbase.OnInit(paramaters);
 
-            backpanel.transform.SetParent(m_Canvas, false);
-            gamePanel.transform.SetParent(backpanel.transform, false);
-            backpanel.transform.SetAsLastSibling();
-
-            m_OpenPanels.Add(gamePanel);
-            Cursor.visible=true;
-            Cursor.lockState=CursorLockMode.None;
+            gamePanel.transform.SetParent(Parent, false);
             return panelbase;
         }
 
-
+        /// <summary>
+        /// 关掉之前打开的panel（受管理的） 
+        /// </summary>
+        /// <param name="panel"></param>
+        /// <returns></returns>
         public bool ClosePanel(PanelBase panel)
         {
             Type panelType = panel.GetType();
-            if (!m_OpenPanels.Contains(panel.gameObject))
+            if (!m_OpenPanels.ContainsKey(panel.gameObject))
                 return false;
 
             panel.OnCloseing(out bool isClose);
@@ -149,11 +217,11 @@ namespace TankGame.UI
             PanelBase panel;
             for(int i=m_OpenPanels.Count-1;i>=0;i--)
             {
-                panel = m_OpenPanels[i].GetComponent<PanelBase>();
+                panel = m_OpenPanels.ElementAt(i).Value;
                 panel.OnClosed();
 
                 //删除父物体 遮罩窗体
-                Destroy(m_OpenPanels[i].transform.parent.gameObject);
+                Destroy(m_OpenPanels.ElementAt(i).Key.transform.parent.gameObject);
                 m_OpenPanels.Remove(panel.gameObject);
             }
         }

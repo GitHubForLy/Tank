@@ -5,7 +5,6 @@ using UnityEngine.UI;
 using TankGame.Net;
 using DataModel;
 using System;
-using UnityEngine.SceneManagement;
 
 namespace TankGame.UI.Panel
 {
@@ -27,9 +26,10 @@ namespace TankGame.UI.Panel
                 return;
             }
 
-
+            var lod= PanelManager.Instance.OpenPanel<LoadingPanel>();
             NetManager.Instance.Login(AccountInput.text, PasswordInput.text, res =>
             {
+                lod.Close();
                 if(res.IsSuccess)
                 {
                     //SceneManager.LoadSceneAsync("TankScene");

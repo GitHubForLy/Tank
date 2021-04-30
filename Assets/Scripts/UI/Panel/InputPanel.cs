@@ -12,7 +12,7 @@ namespace TankGame.UI.Panel
         public InputField Input;
         public override void OnInit(params object[] paramaters)
         {
-            Input.Select();
+            Input.ActivateInputField();
         }
         public override void OnEnter()
         {

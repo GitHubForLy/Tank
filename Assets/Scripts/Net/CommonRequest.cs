@@ -107,7 +107,8 @@ namespace TankGame.Net
         private CommonRequest()
         {
             formatter=new JsonDataFormatter();
-            Init();            
+            Init();
+            //eventWait = new AutoResetEvent(false);
         }
 
         private void Init()
@@ -188,6 +189,8 @@ namespace TankGame.Net
                 {
                     Delegates.Add((eventList.Get(respone.RequestId), sub));
                 }
+
+                // eventWait.Set();
                 eventList.Remove(respone.RequestId);
             }
         }
@@ -217,7 +220,7 @@ namespace TankGame.Net
         /// </summary>
         public void DoRequest<ResType>(object request, string action, EventCallback<ResType> callback)
         {
-            DoRequest<ResType>(request, action, callback, null);
+            DoRequest(request, action, callback, null);
         }
 
         /// <summary>
@@ -236,11 +239,11 @@ namespace TankGame.Net
             if(!NetClient.IsConnected)
                 ReStart();
 
-            if (Delegates.Count > 0 || eventList.Count>0)//如果还有没处理的就不能重复发
-            {
-                Debug.LogWarning(action+" 请求被撤销, 还有请求没有处理完！");
-                return;
-            }
+            //if (Delegates.Count > 0 || eventList.Count > 0 && ComplatedCallback!=null)//如果还有没处理的就不能重复发
+            //{
+            //    Debug.LogWarning(action + " 请求被撤销, 还有请求没有处理完！");
+            //    return;
+            //}
 
 
             Request req = new Request
@@ -256,6 +259,7 @@ namespace TankGame.Net
             }
 
             NetClient.SendDataAsync(formatter.Serialize(req),ComplatedCallback);
+
         }
 
 

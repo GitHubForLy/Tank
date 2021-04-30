@@ -2,12 +2,17 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Linq;
+using System.Reflection;
 
 namespace TankGame.Net
 {
     [RequireComponent(typeof(NetIdentity))]
     public class NetBehaviour : MonoBehaviour
     {
+
+        //private IEnumerable<MethodInfo> syncMethods;
+
         public bool IsLocalPlayer 
         { 
             get
@@ -20,6 +25,12 @@ namespace TankGame.Net
                 return BattlegroundManager.Instance.IsLocalPlayer(this);
             } 
         }
+
+        //private void Start()
+        //{
+        //    syncMethods= GetType().GetMethods().Where(m=>m.IsDefined(typeof(SyncMethodAttribute),true)).Select(m=>m.de);
+        //}
+
 
         public virtual void OnBroadcast((string Action,IDynamicType data) dt)
         {

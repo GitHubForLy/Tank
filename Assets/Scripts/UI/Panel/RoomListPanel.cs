@@ -6,6 +6,7 @@ using DataModel;
 using UnityEngine.UI;
 using System.Linq;
 using UnityEngine.EventSystems;
+using System;
 
 namespace TankGame.UI.Panel
 {
@@ -13,10 +14,18 @@ namespace TankGame.UI.Panel
     {
         public GameObject RoomTitlePrefab;
         public GameObject RoomListContent;
+        public GameObject RoomEmptyTip;
+
         public string RoomId_Name = "RoomID";
         public string RoomState_Name = "Status";
         public string RoomUserCount_Name = "UserCount";
         public string RoomName = "RoomName";
+        public string RoomLockName = "LockImg";
+
+        [SerializeField]
+        private GameObject KeyValPrefab;
+        [SerializeField]
+        private GameObject UserInfoContent;
 
         private Dictionary<RoomInfo,GameObject> Rooms = new Dictionary<RoomInfo, GameObject>();
         private RoomInfo selected;
@@ -36,8 +45,28 @@ namespace TankGame.UI.Panel
                     RoomTitle_OnPointerDown(Rooms.First().Value);
                 }
             });
+
+            GetUserInfo();
         }
 
+        private void GetUserInfo()
+        {
+            CommonRequest.Instance.DoRequest<StandRespone<UserInfo>>(NetManager.Instance.LoginAccount, EventActions.GetUserInfo, res =>
+            {
+                if(res.IsSuccess)
+                {
+                    Inst("用户昵称", res.Data.UserName);
+                    Inst("用户账号", NetManager.Instance.LoginAccount);
+                }
+            });
+
+            void Inst(string title,string value)
+            {
+                var ke= Instantiate(KeyValPrefab, UserInfoContent.transform);
+                ke.transform.Find("Title").GetComponent<Text>().text = title;
+                ke.transform.Find("Value").GetComponent<Text>().text = value;
+            }
+        }
 
         private void Instance_OnReceiveBroadcast((string action, ServerCommon.IDynamicType subdata) msg)
         {
@@ -61,8 +90,8 @@ namespace TankGame.UI.Panel
                     else
                         SetRoomInfo(GetRoomTitleForId(data.RoomId), data);
                 }
-            }
-            else if(msg.action==BroadcastActions.JoinRoom)
+            }//加入房间 ，房间开始战斗，房间游戏结束   都更新一下状态
+            else if(msg.action==BroadcastActions.JoinRoom || msg.action == BroadcastActions.RoomFight || msg.action == BroadcastActions.RoomWaitting)
             {
                 RoomInfo data = msg.subdata.GetValue<RoomInfo>();
                 SetRoomInfo(GetRoomTitleForId(data.RoomId), data);
@@ -107,27 +136,18 @@ namespace TankGame.UI.Panel
         /// </summary>
         public void SetRoomInfo(GameObject romobj,RoomInfo rom)
         {
-            romobj.transform.Find(RoomId_Name).GetComponent<Text>().text = rom.RoomId.ToString();
+            romobj.transform.Find(RoomId_Name).GetComponent<Text>().text ="No."+rom.RoomId.ToString();
             romobj.transform.Find(RoomState_Name).GetComponent<Text>().text = rom.State == 0 ? "准备中" : "已开始";
             romobj.transform.Find(RoomUserCount_Name).GetComponent<Text>().text = rom.UserCount + "/" + rom.MaxCount;
-            romobj.transform.Find(RoomName).GetComponent<Text>().text = rom.Name;
+            romobj.transform.Find(RoomName).GetComponent<Text>().text = rom.Setting.RoomName;
+            romobj.transform.Find(RoomState_Name).GetComponent<Text>().color=rom.State==0?Color.green:Color.white;
+            romobj.transform.Find(RoomLockName).gameObject.SetActive(rom.Setting.HasPassword);
         }
 
 
         public void CreateRoom()
         {
-            CommonRequest.Instance.DoRequest<StandRespone<int>>("坦克大战房间", EventActions.CreateRoom,res=> 
-            { 
-                if(res.IsSuccess)
-                {
-                    Close();
-                    PanelManager.Instance.OpenPanel<RoomPanel>(res.Data,true);                  
-                }
-                else
-                {
-                    PanelManager.Instance.ShowMessageBox("创建房间失败:" + res.Message);
-                }
-            });
+            PanelManager.Instance.OpenPanel<CreateRoomPanel>();
         }
 
         public void JoinRoom()
@@ -139,18 +159,37 @@ namespace TankGame.UI.Panel
             if (selected.UserCount >= selected.MaxCount)
                 return;
 
-            CommonRequest.Instance.DoRequest<StandRespone<int>>(selected.RoomId, EventActions.JoinRoom, res =>
+            if(selected.Setting.HasPassword)
             {
+                InputPasswordPanel.ShowAndGetResult((ok,pas) =>
+                {
+                    if (!ok)    //取消
+                        return;
+                    DoJoinRoom(pas);
+                });
+            }
+            else
+                DoJoinRoom("");
+        }
+
+
+        private void DoJoinRoom(string password)
+        {
+            var lod = PanelManager.Instance.OpenPanel<LoadingPanel>();
+            CommonRequest.Instance.DoRequest<StandRespone<RoomInfo>>((selected.RoomId, password), EventActions.JoinRoom, res =>
+            {
+                lod.Close();
                 if (res.IsSuccess)
                 {
                     Close();
-                    PanelManager.Instance.OpenPanel<RoomPanel>(res.Data,false);
+                    PanelManager.Instance.OpenPanel<RoomPanel>(res.Data);
                 }
                 else
                     PanelManager.Instance.ShowMessageBox("加入房间失败:" + res.Message);
             });
         }
-        public override void OnClosed()
+
+        private void OnDestroy()
         {
             NetManager.Instance.OnReceiveBroadcast -= Instance_OnReceiveBroadcast;
         }

@@ -15,7 +15,7 @@ namespace TankGame.Net
         private NetIdentity netIdentity;
         private new  Rigidbody rigidbody;
         private Vector3 oldPos, oldEur;
-        private Vector3 oldRcvPos=Vector3.zero, oldRcvEur=Vector3.zero;
+        private Vector3 oldRcvPos=Vector3.zero, oldRcvEur=Vector3.zero,oldfpos;
         private Vector3 fPos, fEur;
         private float lastRcvTime;
         private float deltaTime;
@@ -48,29 +48,46 @@ namespace TankGame.Net
 
             if(dt.Action== DataModel.BroadcastActions.UpdateTransform && IsNeedSyncTransform && !IsLocalPlayer)
             {            
-                (string account,double sendtime, DataModel.Transform transform,DataModel.Vector3 velocity) data = dt.data.GetValue<(string , double, DataModel.Transform, DataModel.Vector3)>();
-                if (data.account != netIdentity.Account)
-                    return;
+                (string account,double sendtime, DataModel.Transform transform,DataModel.Vector3 velocity)[] data = dt.data.GetValue<(string , double, DataModel.Transform, DataModel.Vector3)[]>();
+                foreach (var item in data)
+                {
+                    if (item.account== netIdentity.Account)
+                    {
+                        var cuPos = item.transform.Position.ToUnityVector();
+                        var cuEur = item.transform.Rotation.ToUnityVector();
 
-                var cuPos = data.transform.Position.ToUnityVector();
-                var cuEur = data.transform.Rotation.ToUnityVector();
-                var ve = data.velocity.ToUnityVector();
-                ve.y = 0;
+                        deltaTime = (float)(NetManager.Instance.ServerTime - item.sendtime);
 
-                deltaTime = (float)(NetManager.Instance.ServerTime - data.sendtime);
-                Debug.Log("time:" + deltaTime+" doutime:"+(Time.time-lastRcvTime));
+                        var timediff = Time.time - lastRcvTime;
+                        Vector3 velocity =timediff!=0?((cuPos - oldRcvPos) / timediff):Vector3.zero;
+                        velocity.y = 0;
 
-                fPos = cuPos + (ve *deltaTime);         //预测当前位置
-                fEur = cuEur;
-                lastRcvTime = Time.time;
+                        Debug.Log("ve:" + velocity+"  -1:"+ (cuPos - oldRcvPos)+"  -2:"+ timediff + "  -3:"+deltaTime);
+
+
+                        //下行延迟大于0.2f则不预测
+                        if (deltaTime < 0.2f)
+                            fPos = cuPos-(oldfpos - cuPos) + (velocity * deltaTime);         //预测当前位置
+                        else
+                        {
+                            fPos = cuPos;
+                            Debug.Log("延迟大于0.2f:" + deltaTime);
+                        }
+
+
+                        fEur = cuEur;
+
+                        oldRcvPos = cuPos;
+                        lastRcvTime = Time.time;
+                        oldfpos = fPos;
+
+                        break;
+                    }
+                }                         
             }
         }
 
-        private void OnGUI()
-        {
-            GUILayout.Label(deltaTime.ToString());
-        }
-
+        
         void Update()
         {
             if (IsLocalPlayer)
@@ -108,16 +125,8 @@ namespace TankGame.Net
                 }
             };
 
-            DataModel.Vector3 velocity = new DataModel.Vector3
-            {
-                X = rigidbody.velocity.x,
-                Y = rigidbody.velocity.y,
-                Z = rigidbody.velocity.z
-            };
-
             var sendtime = NetManager.Instance.ServerTime;
-            Debug.Log(" sendtime:" + sendtime );
-            BoradcastMessage(DataModel.BroadcastActions.UpdateTransform, (netIdentity.Account, sendtime, trans, velocity));
+            BoradcastMessage(DataModel.BroadcastActions.UpdateTransform, (sendtime, trans));
             oldPos = pos;
             oldEur = eur;
             lastSendtime = Time.time;

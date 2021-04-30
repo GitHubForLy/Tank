@@ -37,12 +37,29 @@ namespace TankGame.Player
                 HealthObj = GameObject.FindGameObjectWithTag(Tags.Hp).GetComponent<Image>();
             if (!HealthText)
                 HealthText = GameObject.FindGameObjectWithTag(Tags.HpText).GetComponent<Text>();
+
+            NetManager.Instance.OnReceiveBroadcast += Instance_OnReceiveBroadcast;
+        }
+
+        private void Instance_OnReceiveBroadcast((string action, ServerCommon.IDynamicType subdata) msg)
+        {
+            if (!IsLocalPlayer)
+                return;
+           if(msg.action==DataModel.BroadcastActions.Die)
+            {
+                var killer = msg.subdata.GetValue<string>();
+                if (killer == NetManager.Instance.LoginAccount) //是自己杀了对方
+                    lastKillEnemyTime = Time.time;
+            }
         }
 
         private void TankFire_OnKillEnemy(DamageHit damageHit)
         {
             lastKillEnemyTime = Time.time;
         }
+
+
+
 
         private void OnGUI()
         {
@@ -69,10 +86,25 @@ namespace TankGame.Player
             GUI.DrawTexture(rt, AimTarget);
 
 
-            tankFire.ShootRaycast(out _, out Vector3 firePos);
+            var ishit= tankFire.ShootRaycast(out  RaycastHit hit, out Vector3 firePos);
             var pos = Camera.main.WorldToScreenPoint(firePos);
             Rect frt = new Rect(pos.x - FireTarget.width / 2, Screen.height - pos.y - FireTarget.height / 2, FireTarget.width, FireTarget.height);
             GUI.DrawTexture(frt, FireTarget);
+
+
+            if(ishit && hit.collider.gameObject.CompareTag(Tags.Tank))
+            {
+                var account= hit.collider.gameObject.GetComponent<NetIdentity>().Account;
+                var name= BattlegroundManager.Instance.Tanks[account].UserName;
+                var cont = new GUIContent(name);
+                var style = new GUIStyle();
+                style.normal.textColor = Color.white;
+                style.alignment = TextAnchor.MiddleCenter;
+                var size= style.CalcSize(cont);
+                Rect trt = new Rect(new Vector2(pos.x-size.x/2, pos.y-size.y/2), size);
+
+                GUI.Label(trt,name,style);
+            }
         }
 
         /// <summary>
@@ -95,6 +127,9 @@ namespace TankGame.Player
             }
         }
 
-
+        private void OnDestroy()
+        {
+            NetManager.Instance.OnReceiveBroadcast -= Instance_OnReceiveBroadcast;
+        }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using ServerCommon;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using TankGame.Net;
@@ -27,9 +28,10 @@ namespace TankGame.TankBehaviour
         public float CurrentHealth { get; private set; }
         public bool IsDie { get; private set; }
 
-        public event OnDieEventHandle OnDie;
+        public static event OnDieEventHandle OnDie;
 
         private NetIdentity identity;
+        private GameObject dieEffect;
 
         // Start is called before the first frame update
         void Start()
@@ -47,7 +49,7 @@ namespace TankGame.TankBehaviour
                 (string account,float damage) data = dt.data.GetValue<(string, float)>();
                 if(data.account== identity.Account && !IsLocalPlayer)
                 {
-                    TakeDamage(data.damage,null);
+                    TakeDamage(data.damage,BattlegroundManager.Instance.Tanks[data.account].Instance.GetComponent<TankFire>());
                 }
             }
         }
@@ -65,6 +67,9 @@ namespace TankGame.TankBehaviour
             CurrentHealth -= Damage;
             if (CurrentHealth <= 0)
             {
+                if (IsLocalPlayer)
+                    BroadcastDie(sender.gameObject.GetComponent<NetIdentity>().Account);
+
                 hit.IsMakeDeath = true;
                 CurrentHealth = 0;
                 IsDie = true;
@@ -73,6 +78,14 @@ namespace TankGame.TankBehaviour
             return hit;
         }
 
+
+        public void Revive()
+        {
+            if (dieEffect != null)
+                Destroy(dieEffect);
+            IsDie = false;
+            CurrentHealth = MaxHealth;
+        }
 
         public void UpdateServerTakeDamage(float damaaage)
         {
@@ -84,10 +97,14 @@ namespace TankGame.TankBehaviour
             OnDie?.Invoke(gameObject,killer);
             if (DieEffect)
             {
-                Instantiate(DieEffect, transform.TransformPoint(Vector3.zero), transform.rotation, transform);
+                dieEffect=Instantiate(DieEffect, transform.TransformPoint(Vector3.zero), transform.rotation, transform);
             }
         }
 
+        private void BroadcastDie(string KillerAccount)
+        {
+            CommonRequest.Instance.Broadcast(KillerAccount, DataModel.BroadcastActions.Die);
+        }
     }
 
 }

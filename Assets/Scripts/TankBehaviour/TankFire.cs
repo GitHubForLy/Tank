@@ -46,6 +46,8 @@ namespace TankGame.TankBehaviour
         {
             if (Time.time - lastFireTime < FireInteval)
                 return;
+            if(IsLocalPlayer)
+                BroadFire();
 
             ShootRaycast(out RaycastHit hit, out Vector3 FireTargetPos);
 
@@ -61,6 +63,13 @@ namespace TankGame.TankBehaviour
             lastFireTime = Time.time;
         }
 
+        static int id = 0;
+        private void BroadFire()
+        {
+            //id++;
+            //Debug.Log(id);
+            CommonRequest.Instance.Broadcast(null, DataModel.BroadcastActions.Fire);
+        }
 
         private void DoTakeDamage(Vector3 FireTargetPos)
         {

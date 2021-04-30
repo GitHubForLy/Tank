@@ -10,7 +10,6 @@ using TankGame.UI;
 using System.Runtime.InteropServices;
 using DataModel;
 using ServerCommon;
-using UnityEngine.SceneManagement;
 using TankGame.UI.Panel;
 
 namespace TankGame
@@ -29,6 +28,8 @@ namespace TankGame
         public string Password { get; set; }
         public string LoginTimestamp { get; private set; }
         public bool IsLogin { get; private set; } = false;
+        public bool IsShowTimeinfo { get; set; }
+
         /// <summary>
         /// 与服务器的单次延迟 单位秒
         /// </summary>
@@ -50,7 +51,9 @@ namespace TankGame
 
         private bool IsNeedReconnect = false;
         private bool isReConnecting = false;
-
+        private double ctime;
+        private double time;
+        private double serverbacktime;
 
         [DllImport("winInet.dll")]
         private static extern bool InternetGetConnectedState(ref int dwFlag,int dwReserved);
@@ -58,6 +61,9 @@ namespace TankGame
 
         private void Awake()
         {
+
+            Debug.Log("xxxc:"+(new UnityEngine.Vector3(1, 2, 3) )/ 0);
+
             if (Instance != null && Instance == this)
                 return;
             Debug.Log("net awake, instance?" + (Instance == null));
@@ -88,18 +94,28 @@ namespace TankGame
             StartCoroutine(CheckTime());
         }
 
+        /// <summary>
+        /// 检查时间 同时也代替为心跳包
+        /// </summary>
+        /// <returns></returns>
         private IEnumerator CheckTime()
         {
-            var time = GetTime();
-            CommonRequest.Instance.DoRequest<double>(null, EventActions.CheckTime, res =>
+            if (!IsNeedReconnect && CommonRequest.Instance.IsConnected)
             {
-                var ctime = GetTime();
-                var delay = (ctime - time) / 2;     //与服务器延迟粗略的计算为 请求来回行程时间的一半
-                TimeDelay = (float)delay; 
+                var tmptime = GetTime();
+                CommonRequest.Instance.DoRequest<double>(null, EventActions.CheckTime, res =>
+                {
+                    ctime = GetTime();
+                    var delay = (ctime - tmptime) / 2;     //与服务器延迟粗略的计算为 请求来回行程时间的一半
+                    TimeDelay = (float)delay;
 
-                var servertime = res + delay;  //此时的服务器时间=返回的服务器时间+单向延迟
-                ServerTimeDiff = (float)(ctime - servertime);    //与服务器的时差=当前时间-服务器时间
-            });
+                    var servertime = res + delay;  //此时的服务器时间=返回的服务器时间+单向延迟
+                    ServerTimeDiff = (float)(ctime - servertime);    //与服务器的时差=当前时间-服务器时间
+
+                    time = tmptime;
+                    serverbacktime = res;
+                });
+            }
             yield return new WaitForSeconds(2.5f);
             StartCoroutine(CheckTime());
         }
@@ -108,6 +124,20 @@ namespace TankGame
         void Start()
         {
         }
+
+
+        private void OnGUI()
+        {
+            if(IsShowTimeinfo)
+            {
+                GUILayout.Label("上下行(rtt):" +(int)((ctime - time)*1000)+" ms");
+                GUILayout.Label("预估上/下 行:" + (int)(TimeDelay*1000)+" ms");
+                GUILayout.Label("服务器时差:" + (int)(ServerTimeDiff*1000)+" ms");
+                GUILayout.Label("上行:" + (int)((serverbacktime - time)*1000)+" ms");
+                GUILayout.Label("下行:"+(int)((ctime - serverbacktime)*1000)+" ms");                
+            }
+        }
+
 
         private void Application_logMessageReceived(string condition, string stackTrace, LogType type)
         {
@@ -134,12 +164,12 @@ namespace TankGame
                 yield return new WaitForSeconds(1);
             }
             Debug.LogWarning($"对服务器进行重连");
-            CommonRequest.Instance.ReStart();
+            if(!CommonRequest.Instance.IsConnected)
+                CommonRequest.Instance.ReStart();
             isReConnecting = false;
 
             if (IsLogin)
-                ReLogin();
-        
+                ReLogin();     
         }
 
 
@@ -152,6 +182,9 @@ namespace TankGame
 
             InvokeEventDelegate();
             InvokeBroadcastMethod();
+
+            if (Input.GetKeyDown(KeyCode.BackQuote))
+                IsShowTimeinfo = !IsShowTimeinfo;
         }
 
         /// <summary>
@@ -195,13 +228,13 @@ namespace TankGame
                         PanelManager.Instance.ShowMessageBox("你的账号已于别处登录", MessageBoxButtons.Ok, res =>
                         {
                             IsLogin = false;
-                            if(SceneManager.GetActiveScene().name=="StartScene")
+                            if(GameController.CurrentSceneName=="StartScene")
                             {
                                 PanelManager.Instance.CloseAll();
                                 PanelManager.Instance.OpenPanel<LoginPanel>();
                             }
                             else
-                                SceneManager.LoadScene("StartScene");
+                                GameController.LoadScene<LoginPanel>("StartScene");
                         });
                     }
                 }
@@ -220,16 +253,10 @@ namespace TankGame
                 {
                     var dega = CommonRequest.Delegates[i];
                     CommonRequest.Delegates.RemoveAt(i);
-                    try
-                    {
-                        var parameter = dega.callback.Method.GetParameters()[0];
-                        //dega.callback(dega.res);
-                        dega.callback.DynamicInvoke(dega.res.GetValue(parameter.ParameterType));                        
-                    }
-                    catch(Exception e)
-                    {
-                        Debug.LogError("event 回调方法出错:" + e.Message);
-                    }
+
+                    var parameter = dega.callback.Method.GetParameters()[0];
+                    //dega.callback(dega.res);
+                    dega.callback.DynamicInvoke(dega.res.GetValue(parameter.ParameterType));                        
                 }            
             }
         }

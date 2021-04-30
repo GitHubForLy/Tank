@@ -65,7 +65,7 @@ namespace TankGame.AI
             }
             currentWayIndex = GetNextNavIndex();
 
-            tankHealth.OnDie += TankHealth_OnDie;
+            TankHealth.OnDie += TankHealth_OnDie;
         }
 
         private void TankHealth_OnDie(GameObject deadTank, Behaviour killer)

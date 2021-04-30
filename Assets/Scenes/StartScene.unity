@@ -132,6 +132,7 @@ GameObject:
   - component: {fileID: 548960278}
   - component: {fileID: 548960276}
   - component: {fileID: 548960275}
+  - component: {fileID: 548960277}
   m_Layer: 0
   m_Name: GlobalController
   m_TagString: GameController
@@ -172,6 +173,18 @@ MonoBehaviour:
   m_Canvas: {fileID: 0}
   DefaultCursorVisble: 0
   DefaultCursroMode: 0
+--- !u!114 &548960277
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 548960274}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf65ff95c5d2bfa40a46c0ed469aea2d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!4 &548960278
 Transform:
   m_ObjectHideFlags: 0

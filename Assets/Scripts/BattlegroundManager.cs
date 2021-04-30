@@ -7,7 +7,9 @@ using ServerCommon;
 using System.Runtime.InteropServices;
 using TankGame.UI;
 using System.Linq;
-using UnityEngine.SceneManagement;
+using TankGame.UI.Panel;
+using UnityEngine.UI;
+using TankGame.Player;
 
 namespace TankGame
 {
@@ -20,16 +22,27 @@ namespace TankGame
         /// 所在房间的用户
         /// </summary>
         public static DataModel.RoomUser[] RoomUsers { get;  set; }
+        /// <summary>
+        /// 所在的房间
+        /// </summary>
+        public static DataModel.RoomInfo Room { get; set; }
 
         public GameObject TankPrefab;
         public Transform[] Waypoints;
-        public GameObject LocalTank{get;set;}
+        public Tank LocalTank{get;set;}
+
+
+        private bool inputopen = false;
+        private bool escapeOpen = false;
 
         public class Tank
         {
             public int TeamNumber{get;set;}
+            public DataModel.RoomUser RoomUser { get; set; }
 
             // public string Account{get;set;}
+            public string UserName { get; set; }
+
             public GameObject Instance { get; set; }
             public bool IsDie
             { 
@@ -61,7 +74,9 @@ namespace TankGame
         // Start is called before the first frame update
         void Start()
         {
-            Cursor.lockState = CursorLockMode.Locked;
+            if (!NetManager.Instance.IsLogin)
+                return;
+
             Cursor.visible = false;
             PanelManager.Instance.DefaultCursroMode = CursorLockMode.Locked;
             PanelManager.Instance.DefaultCursorVisble = false;
@@ -69,11 +84,9 @@ namespace TankGame
             Waypoints = GameObject.FindGameObjectsWithTag(Tags.Waypoint).Select(g => g.transform).ToArray();
             cameraFollow = Camera.main.GetComponent<CameraFollow>();
             timescale = Time.timeScale;
+            TankHealth.OnDie += BattlegroundManager_OnDie;
 
-            if (NetManager.Instance.IsLogin)
-            {
-                StartGame();
-            }
+            StartGame();
         }
 
 
@@ -81,19 +94,38 @@ namespace TankGame
         {
             if(Input.GetKeyDown(KeyCode.Escape))
             {
-                PanelManager.Instance.OpenPanel<TankGame.UI.Panel.BattleMenuPanel>();
+                if (!escapeOpen)
+                {
+                    escapeOpen = true;
+                    PanelManager.Instance.OpenPanel<TankGame.UI.Panel.BattleMenuPanel>();
+                }
+                else
+                    escapeOpen = false;
+
             }
         }
 
+       
+        /// <summary>
+        /// 暂停游戏
+        /// </summary>
         public void PauseGame()
         {
             //Time.timeScale = 0;
-            LocalTank.GetComponent<TankGame.Player.TankGui>().enabled = false;
+
+            LocalTank.Instance.GetComponent<TankGame.Player.TankGui>().enabled = false;
+            LocalTank.Instance.GetComponent<TankGame.Player.PlayerControl>().enabled = false;
+            cameraFollow.enabled = false;
         }
+        /// <summary>
+        /// 恢复游戏
+        /// </summary>
         public void ResumeGame()
         {
             //Time.timeScale = timescale;
-            LocalTank.GetComponent<TankGame.Player.TankGui>().enabled = true;
+            LocalTank.Instance.GetComponent<TankGame.Player.TankGui>().enabled = true;
+            LocalTank.Instance.GetComponent<TankGame.Player.PlayerControl>().enabled = true;
+            cameraFollow.enabled = true;
         }
 
         /// <summary>
@@ -124,6 +156,8 @@ namespace TankGame
                     break;
             }
         }
+
+
 
         private void OnUserLoginOut(IDynamicType subData)
         {
@@ -170,12 +204,7 @@ namespace TankGame
             {
                 foreach(var user in RoomUsers)
                 {
-                    var tank= SpawnTank(user, Waypoints[user.Index].position, Waypoints[user.Index].eulerAngles);
-                    if (user.Account==NetManager.Instance.LoginAccount)
-                    {
-                        LocalTank = tank;
-                        cameraFollow.target = tank.transform.Find("camera_follow").gameObject;
-                    }
+                   SpawnTank(user, Waypoints[user.Index].position, Waypoints[user.Index].eulerAngles);
                 }
             }
             else
@@ -184,29 +213,56 @@ namespace TankGame
             }
         }
 
+        private void BattlegroundManager_OnDie(GameObject deadTank, Behaviour killer)
+        {
+            deadTank.GetComponent<PlayerControl>().EnableInput = false;
+        }
+
 
         /// <summary>
         /// 生成坦克
         /// </summary>
-        private GameObject SpawnTank(DataModel.RoomUser user,Vector3 position,Vector3 rotation)
+        public Tank SpawnTank(DataModel.RoomUser user,Vector3 position,Vector3 rotation)
         {
+           
             var account = user.Account;
-            if (Tanks.ContainsKey(account))
-                return Tanks[account].Instance;
-
             var instance = Instantiate(TankPrefab, position, Quaternion.Euler(rotation));
+       
+            instance.GetComponent<TankTeam>().TeamNumber = user.Team;
+            instance.GetComponent<NetIdentity>().Account = account;
 
             Tank tank = new Tank
             {
-                TeamNumber = Random.Range(0, 100),
-                Instance = instance
+                TeamNumber = user.Team,
+                Instance = instance,
+                RoomUser = user,
+                UserName = user.Info.UserName
             };
-            Tanks.Add(account, tank);
+            if (user.Account == NetManager.Instance.LoginAccount)
+            {
+                LocalTank = tank;
+                cameraFollow.target = instance.transform.Find("camera_follow").gameObject;
+            }
+            if (Tanks.ContainsKey(account))
+            {
+                if (Tanks[account].Instance != null)
+                    Destroy(Tanks[account].Instance);
+                Tanks[account] = tank;
+            }
+            else
+                Tanks.Add(account, tank);
 
-            instance.GetComponent<TankTeam>().TeamNumber = user.Team;
-            instance.GetComponent<NetIdentity>().Account = account;
-            return instance;
+            return tank;
         }
+
+
+        public void Revive(GameObject deadTank)
+        {
+            var account = deadTank.GetComponent<NetIdentity>().Account;
+            var user = Tanks[account].RoomUser;
+            SpawnTank(user, Waypoints[user.Index].position, Waypoints[user.Index].eulerAngles);
+        }
+
 
         private void OnDestroy()
         {

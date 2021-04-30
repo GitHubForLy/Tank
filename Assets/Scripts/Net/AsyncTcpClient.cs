@@ -126,7 +126,7 @@ namespace TankGame.Net
             {
                 OnConnectException?.Invoke(this, e);
             }
-            Task.Factory.StartNew(HeartWork);
+            //Task.Factory.StartNew(HeartWork);
         }
 
         /// <summary>
@@ -174,15 +174,57 @@ namespace TankGame.Net
         /// </summary>
         public void SendDataAsync(byte[] data,Action sendcomplated)
         {
-            if (IsAsyncSending)
-                return;
-            IsAsyncSending = true;
+            //if (IsAsyncSending)
+            //{
+            //    UnityEngine.Debug.Log("error: ending");
+            //    return;
+            //}
+            //IsAsyncSending = true;
+            //var pkdata = DataPackage.PackData(data);
+            //sendarg.SetBuffer(pkdata, 0, pkdata.Length);
+            //sendarg.UserToken = sendcomplated;
+            //if (!socket.SendAsync(sendarg))
+            //{
+            //    SendAsync_Completed(this, sendarg);
+            //    UnityEngine.Debug.Log("同步完成");
+            //}
+
+            var pkdata = DataPackage.PackData(data);
+            socket.BeginSend(pkdata, 0, pkdata.Length, SocketFlags.None, SendComplated, sendcomplated);
+
+        }
+
+        private void SendComplated(IAsyncResult result)
+        {
+            (result.AsyncState as Action)?.Invoke();
+
+            int res= socket.EndSend(result,out SocketError error);
+            if (error != SocketError.Success && error != SocketError.WouldBlock)
+            {
+                //出错
+                dataPackage.Clear();
+                OnConnectException?.Invoke(this, new ConnectionException(error));
+            }
+        }
+
+
+        /// <summary>
+        /// 异步发送数据
+        /// </summary>
+        public void SendData(byte[] data, Action sendcomplated)
+        {
+
             var pkdata = DataPackage.PackData(data);
             sendarg.SetBuffer(pkdata, 0, pkdata.Length);
             sendarg.UserToken = sendcomplated;
-            if (!socket.SendAsync(sendarg))
+            int count = socket.Send(pkdata);
+            if (count == pkdata.Length)
                 SendAsync_Completed(this, sendarg);
+            else
+                OnConnectException?.Invoke(this, new SocketException(count));
         }
+
+
 
         private async void HeartWork()
         {

@@ -10,6 +10,8 @@ namespace TankGame.UI.Panel
     public class RegisterPanel : PanelBase
     {
         [SerializeField]
+        private InputField m_NameInput;
+        [SerializeField]
         private InputField m_AccountInput;
         [SerializeField]
         private InputField m_PasswordInput;
@@ -24,9 +26,19 @@ namespace TankGame.UI.Panel
 
         public void Register()
         {
+            if (string.IsNullOrEmpty(m_NameInput.text))
+            {
+                PanelManager.Instance.ShowMessageBox("请输入昵称");
+                return;
+            }
             if (string.IsNullOrEmpty(m_AccountInput.text))
             {
                 PanelManager.Instance.ShowMessageBox("请输入账号");
+                return;
+            }
+            if (!System.Text.RegularExpressions.Regex.IsMatch(m_AccountInput.text, @"^[0-9a-zA-Z_]{1,}$"))
+            {
+                PanelManager.Instance.ShowMessageBox("账号 只能有数字,字母,下划线组成");
                 return;
             }
             if (string.IsNullOrEmpty(m_PasswordInput.text))
@@ -49,7 +61,8 @@ namespace TankGame.UI.Panel
             RegisterRequest request = new RegisterRequest
             {
                 UserName = m_AccountInput.text,
-                Password = m_PasswordInput.text
+                Password = m_PasswordInput.text,
+                UserAccount = m_NameInput.text
             };
 
             CommonRequest.Instance.DoRequest<StandRespone>(request, EventActions.Register, (res) =>

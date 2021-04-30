@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 using TankGame.Player;
-using UnityEngine.SceneManagement;
 using System;
 
 namespace TankGame.UI.Panel
